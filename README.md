@@ -1,3 +1,7 @@
+搭建环境可以参考
+http://note.youdao.com/noteshare?id=609182531bb8803f0d5f590cd05c5692
+http://svip.iocoder.cn/categories/Redis/
+
 This README is just a fast *quick start* document. You can find more detailed documentation at [redis.io](https://redis.io).
 
 What is Redis?

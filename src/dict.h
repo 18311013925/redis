@@ -52,31 +52,47 @@ typedef struct dictEntry {
         int64_t s64;
         double d;
     } v; // value 值
-    struct dictEntry *next; // 下一个
+    struct dictEntry *next; // 指向下一个哈希表节点，形成链表
 } dictEntry;
 
+/*
+ *保存了一簇用于操作特定类型键值对的函数， Redis 会为用途不同的字典设置不同的类型特定函数。
+ *
+ * */
 typedef struct dictType {
+//    计算哈希表的函数
     uint64_t (*hashFunction)(const void *key);
+//    复制键的函数
     void *(*keyDup)(void *privdata, const void *key);
+//    复制值的函数
     void *(*valDup)(void *privdata, const void *obj);
+//    对比键的函数
     int (*keyCompare)(void *privdata, const void *key1, const void *key2);
+//    销毁键的函数
     void (*keyDestructor)(void *privdata, void *key);
+//    销毁值的函数
     void (*valDestructor)(void *privdata, void *obj);
 } dictType;
 
 /* This is our hash table structure. Every dictionary has two of this as we
  * implement incremental rehashing, for the old to the new table. */
 typedef struct dictht {
-    dictEntry **table; // 二维 dictEntry 数组
-    unsigned long size; // 第一维数组的长度
-    unsigned long sizemask;
-    unsigned long used; // hash 表中的元素个数
+    // 二维 dictEntry 数组 , 哈希表数组, 数组中的每个元素都是一个纸箱dict.h/dictEntry 中的一个指针
+    dictEntry **table;
+    unsigned long size; // 第一维数组的长度   哈希表的大小
+    unsigned long sizemask;   // 哈希表大小掩码，用于计算索引值
+    unsigned long used; // hash 表中的元素个数     该哈希表已有节点的数量
 } dictht;
 
 typedef struct dict {
+    // 类型特定函数
     dictType *type;
+    //私有数据
     void *privdata;
+//    哈希表
     dictht ht[2]; // 两个 dictht 。一般只使用第一个；扩容时，第一个是老的，第二个是新的，扩容完成后，老的指向新的。
+//   rehash 索引
+// 当rehash 不在进行时， 值为-1
     long rehashidx; /* rehashing not in progress if rehashidx == -1 */
     unsigned long iterators; /* number of iterators currently running */
 } dict;
