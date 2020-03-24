@@ -34,6 +34,7 @@
 
 /**
  * 整数 set 集合结构体
+ * 可以保存 int16_t int32_t int64_t 的整数值, 并且保证集合中不会出现重复元素
  */
 typedef struct intset {
     uint32_t encoding; // 决定整数位宽是 16 位、32 位、64 位。

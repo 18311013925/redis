@@ -662,10 +662,11 @@ typedef struct RedisModuleDigest {
 #define OBJ_SHARED_REFCOUNT INT_MAX
 /**
  * Redis 对象头结构体
+ * Redis 使用对象来表示数据库中的键和值
  */
 typedef struct redisObject {
-    unsigned type:4; // 4 bits 。类型。
-    unsigned encoding:4; // 4 bits 。同一类型(type) 会有不同的存储形式。
+    unsigned type:4; // 4 bits 。对象类型。REDIS_STRING、 REDIS_LIST、 REDIS_HASH、 REDIS_SET、 REDIS_ZSET
+    unsigned encoding:4; // 编码， 4 bits 。同一类型(type) 会有不同的存储形式。
     unsigned lru:LRU_BITS; /* LRU time (relative to global lru_clock) or // LRU 时，最后访问时间
                             * LFU data (least significant 8 bits frequency
                             * and most significant 16 bits access time). */ // 24 BITS
@@ -703,6 +704,7 @@ typedef struct clientReplyBlock {
  * database. The database number is the 'id' field in the structure.
  *
  * Redis DB 结构体
+ *
  * */
 typedef struct redisDb {
     dict *dict;                 /* The keyspace for this DB */ // key => value 字典
@@ -742,7 +744,7 @@ typedef struct blockingState {
     /* BLOCKED_LIST, BLOCKED_ZSET and BLOCKED_STREAM */
     dict *keys;             /* The keys we are waiting to terminate a blocking
                              * operation such as BLPOP or XREAD. Or NULL. */
-    robj *target;           /* The key that should receive the element,
+    robj *target;           /* The key that shold receive the element,
                              * for BRPOPLPUSH. */
 
     /* BLOCK_STREAM */
@@ -891,7 +893,9 @@ typedef struct client {
 } client;
 
 struct saveparam {
+    // 秒数
     time_t seconds;
+    // 修改次数
     int changes;
 };
 
@@ -923,13 +927,13 @@ typedef struct zskiplistNode {
     double score; // score
     struct zskiplistNode *backward; // 回溯指针，即前一个节点
     struct zskiplistLevel {
-        struct zskiplistNode *forward; // 每一层的指向
+        struct zskiplistNode *forward; // 前进指针 每一层的指向
         unsigned long span; // 跨度，表示从前一个节点沿着当前层的 forward 指针跳到当前这个节点中间会跳过多少个节点。
     } level[]; // 多层连接指针
 } zskiplistNode;
 
 typedef struct zskiplist {
-    struct zskiplistNode *header, // 头指针
+    struct zskiplistNode *header, //  跳跃表头指针
             *tail; // 尾指针
     unsigned long length; // 总元素数量
     int level; // 最高层级
@@ -1063,7 +1067,7 @@ struct redisServer {
                                    the actual 'hz' field value if dynamic-hz
                                    is enabled. */
     int hz;                     /* serverCron() calls frequency in hertz */
-    redisDb *db;
+    redisDb *db;                /* 一个数组， 保存着服务器中所有的数据库*/
     dict *commands;             /* Command table */
     dict *orig_commands;        /* Command table before command renaming. */
     aeEventLoop *el;
@@ -1180,7 +1184,7 @@ struct redisServer {
     int active_defrag_cycle_max;       /* maximal effort for defrag in CPU percentage */
     unsigned long active_defrag_max_scan_fields; /* maximum number of fields of set/hash/zset/list to process from within the main dict scan */
     _Atomic size_t client_max_querybuf_len; /* Limit for client query buffer length */
-    int dbnum;                      /* Total number of configured DBs */
+    int dbnum;                      /* Total number of configured DBs 服务器的数据库数量 由服务器配置的database 决定，默认16，所以默认创建16个数据库 */
     int supervised;                 /* 1 if supervised, 0 otherwise. */
     int supervised_mode;            /* See SUPERVISED_* */
     int daemonize;                  /* True if running as a daemon */
@@ -1199,6 +1203,7 @@ struct redisServer {
     int aof_rewrite_scheduled;      /* Rewrite once BGSAVE terminates. */
     pid_t aof_child_pid;            /* PID if rewriting process */
     list *aof_rewrite_buf_blocks;   /* Hold changes during an AOF rewrite. */
+    // todo aof缓存区
     sds aof_buf;      /* AOF buffer, written before entering the event loop */
     int aof_fd;       /* File descriptor of currently selected AOF file */
     int aof_selected_db; /* Currently selected DB in AOF */
@@ -1225,14 +1230,16 @@ struct redisServer {
                                       to child process. */
     sds aof_child_diff;             /* AOF diff accumulator child side. */
     /* RDB persistence */
+    // todo 记录距离上一次成功执行SAVE命令或者BGSAVE 命令之后，服务器对数据库状态（服务器中的所有数据库 ） 进行了多少次修改（写，删除，更新等操作
     long long dirty;                /* Changes to DB from the last save */
     long long dirty_before_bgsave;  /* Used to restore dirty on failed BGSAVE */
-    pid_t rdb_child_pid;            /* PID of RDB saving child */
-    struct saveparam *saveparams;   /* Save points array for RDB */
+     rdb_child_pid;            /* PID of RDB saving child */
+    struct saveparam *saveparams;   /* Save points array for RDB */  // 记录RDB保存条件的数组
     int saveparamslen;              /* Number of saving points */
     char *rdb_filename;             /* Name of RDB file */
     int rdb_compression;            /* Use compression in RDB? */
     int rdb_checksum;               /* Use RDB checksum? */
+    //todo 记录上一次成功执行save 命令或者bgsave 命令执行时间
     time_t lastsave;                /* Unix time of last successful save */
     time_t lastbgsave_try;          /* Unix time of last attempted bgsave */
     time_t rdb_save_time_last;      /* Time used by last RDB save run. */
@@ -1863,11 +1870,17 @@ typedef struct {
     sds min, max;     /* May be set to shared.(minstring|maxstring) */
     int minex, maxex; /* are min or max exclusive? */
 } zlexrangespec;
-
+/**
+ * 跳跃表API
+ */
+// 创建一个新的跳跃表
 zskiplist *zslCreate(void);
+// 释放给定的跳跃表， 以及表中包含的所有节点
 void zslFree(zskiplist *zsl);
+// 将包含给定成员和分值的新节点添加到跳跃表中
 zskiplistNode *zslInsert(zskiplist *zsl, double score, sds ele);
 unsigned char *zzlInsert(unsigned char *zl, sds ele, double score);
+// 删除跳跃表中的包含给定成员和分值节点
 int zslDelete(zskiplist *zsl, double score, sds ele, zskiplistNode **node);
 zskiplistNode *zslFirstInRange(zskiplist *zsl, zrangespec *range);
 zskiplistNode *zslLastInRange(zskiplist *zsl, zrangespec *range);
